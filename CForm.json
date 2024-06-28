@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Sample Template"
+Parameters:
+    InstanceTypeParameter:
+        Type: String
+        AllowedValues:
+        - t2.micro
+        - m1.small
+        - m1.large
+Resources:
+    myVPC:
+        Type: AWS::EC2::VPC
+        Properties:
+          CidrBlock: 10.0.0.0/16
+          EnableDnsSupport: 'true'
+          EnableDnsHostnames: 'true'
+    internetgateway:
+        Type: AWS::EC2::InternetGateway
+        Properties:
+          Tags:
+          - Key: stack
+            Value: production
+    AttachGateway:
+        Type: AWS::EC2::VPCGatewayAttachment
+        Properties:
+          VpcId: !Ref myVPC
+          InternetGatewayId: !Ref internetgateway
+    myRouteTablePublic:
+        Type: AWS::EC2::RouteTable
+        Properties:
+          VpcId: !Ref myVPC
+    myRouteTablePrivate:
+        Type: AWS::EC2::RouteTable
+        Properties:
+          VpcId: !Ref myVPC
+    myRoutePublic:
+        Type: AWS::EC2::Route
+        Properties:
+          RouteTableId: !Ref myRouteTablePublic
+          DestinationCidrBlock: 0.0.0.0/0
+          GatewayId: !Ref internetgateway  
+    NATGateway:
+       Type: AWS::EC2::NatGateway
+       Properties:
+          AllocationId: !GetAtt NATGatewayEIP.AllocationId
+          SubnetId: !Ref mySubnet1
+    NATGatewayEIP:
+       Type: AWS::EC2::EIP
+       Properties:
+          Domain: vpc
+    RouteNATGateway:
+       Type: AWS::EC2::Route
+       Properties:
+          RouteTableId: !Ref myRouteTablePrivate
+          DestinationCidrBlock: '0.0.0.0/0'
+          NatGatewayId: !Ref NATGateway
+    mySubnet1:
+        Type: AWS::EC2::Subnet
+        Properties:
+          VpcId: !Ref myVPC
+          MapPublicIpOnLaunch: true
+          CidrBlock: 10.0.1.0/24
+          AvailabilityZone: "us-east-1a"
+    mySubnetRouteTableAssociation1:
+        Type: AWS::EC2::SubnetRouteTableAssociation
+        Properties:
+          SubnetId: !Ref mySubnet1
+          RouteTableId: !Ref myRouteTablePublic
+    mySubnet2:
+        Type: AWS::EC2::Subnet
+        Properties:
+          VpcId: !Ref myVPC
+          CidrBlock: 10.0.2.0/24
+          AvailabilityZone: "us-east-1b"
+    mySubnet3:
+        Type: AWS::EC2::Subnet
+        Properties:
+          VpcId: !Ref myVPC
+          CidrBlock: 10.0.3.0/24
+          AvailabilityZone: "us-east-1c"
+    myVPCEC2SecurityGroup:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+          GroupDescription: SG to test ping
+          VpcId: !Ref myVPC
+          SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 0.0.0.0/0
+          SecurityGroupEgress:
+          - IpProtocol: "-1"
+            CidrIp: 0.0.0.0/0
+    Ec2Instance: 
+        Type: AWS::EC2::Instance
+        Properties: 
+          ImageId: "ami-04b70fa74e45c3917"
+          NetworkInterfaces: 
+          - AssociatePublicIpAddress: "true"
+            DeviceIndex: "0"
+            GroupSet: 
+              - Ref: "myVPCEC2SecurityGroup"
+            SubnetId: !Ref mySubnet1
